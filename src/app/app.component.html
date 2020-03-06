@@ -1,0 +1,41 @@
+<quill-editor [(ngModel)]="dataModel"
+              format="object">
+  <div quill-editor-toolbar>
+    <span class="ql-formats">
+        <small>
+            <strong>
+                Rich Text Editor
+            </strong>
+        </small>
+    </span>
+    <span class="ql-formats float-right">
+        <button class="ql-bold"></button>
+        <button class="ql-underline"></button>
+        <button class="ql-list" value="bullet"></button>
+        <button class="ql-link" value="link"></button>
+        <!--<button class="ql-italic"></button>-->
+        <!--<select class="ql-color"></select>-->
+    </span>
+  </div>
+</quill-editor>
+
+
+
+<h1>Our Converted Model</h1>
+<hr />
+<pre>
+<code>
+{{ convertedDataModel | json }}
+</code>
+</pre>
+
+
+
+<h1>Quill Model</h1>
+<hr />
+<pre>
+<code>
+{{ dataModel | json }}
+</code>
+</pre>
+
