@@ -10,6 +10,12 @@ interface CustomTextModel {
   isHyperLink?: boolean;
 }
 
+interface BulletsIndexModel {
+  index: number;
+  qtyAllowed: number;
+  qtyUsed: number;
+}
+
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
@@ -31,11 +37,7 @@ export class AppComponent {
     },
     {
       attributes: { list: 'bullet' },
-      insert: '\n'
-    },
-    {
-      attributes: { list: 'bullet' },
-      insert: '\n'
+      insert: '\n\n'
     },
     {
       insert: 'asbv'
@@ -87,21 +89,84 @@ export class AppComponent {
     }]
   };
 
-  private usedBulletsIndex: number[] = [];
+  convertedDataModel: CustomTextModel[] = [];
+
+  private usedBulletsIndex: BulletsIndexModel[] = [];
 
   convertBackToQuill() {
-    let currentModel = this.convertedDataModel;
+    this.convertDataModel();
 
     let response = [];
 
+    for(let i = 0; i < this.convertedDataModel.length; i++) {
+      let item = this.convertedDataModel[i];
+
+      if (item.isBulletPoint) {
+        // read the next (x) items as well, up to the next newline, and make a bullet point object out of it
+        let nextIndexOfNewline = -1;
+        for (let j = i + 2; j < this.convertedDataModel.length && nextIndexOfNewline == -1; j++) {
+          if (this.convertedDataModel[j].isNewLine) {
+            nextIndexOfNewline = j;
+          }
+        }
+
+        // Now gather up the nodes between us
+
+        // Skip the node that is holding the bulletPoint.
+        i = i + 1;
+
+        for (let currentBulletPointDataIndex = i; currentBulletPointDataIndex < nextIndexOfNewline; currentBulletPointDataIndex++) {
+          response.push(this.buildTextNode(this.convertedDataModel[currentBulletPointDataIndex]));
+        }
+
+        response.push({
+          insert: '\n',
+          attributes: {
+            list: 'bullet'
+          }
+        });
+
+        i = nextIndexOfNewline + 1;
+      }
+      else if (item.isNewLine) {
+        response.push({insert: '\n'});
+      }
+      else {
+        response.push(this.buildTextNode(item));
+      }
+
+    }
 
     this.dataModel = { ops: response };
   }
 
+  private buildTextNode(item: CustomTextModel) {
+    let response = {
+      insert: item.text,
+    }
 
-  get convertedDataModel(): CustomTextModel[] {
+    if (item.isBold || item.isHyperLink || item.isUnderline) {
+      response['attributes'] = {};
 
-    this.usedBulletsIndex = [];
+      if (item.isHyperLink) {
+        response['attributes']['link'] = item.hyperlink;
+      }
+
+      if (item.isUnderline) {
+        response['attributes']['underline'] = true;
+      }
+
+      if (item.isBold) {
+        response['attributes']['bold'] = true;
+      }
+    }
+
+    return response;
+  }
+
+
+  convertDataModel() {
+
 
     // We need to parse all of the text based on \n
     // a \n signifies the end of operations applied to a specific item
@@ -158,13 +223,14 @@ export class AppComponent {
 
      */
 
+    this.usedBulletsIndex = [];
+    this.buildBulletIndex();
     console.info('---------- Staring parsing ----------');
 
-    let response: CustomTextModel[] = [];
+    this.convertedDataModel = [];
     const ops = this.dataModel.ops;
+    let bulletTextNeedsToBeClosedOff = false;
 
-
-    let appliedBulletForLine: boolean = false;
     for(let i = 0; i < ops.length; i++) {
       let item = ops[i];
 
@@ -172,26 +238,37 @@ export class AppComponent {
 
       let textSplitOnNewlines = this.getTextSplitOnNewlines(text);
 
-      console.log(textSplitOnNewlines);
-
 
       for(let j = 0; j < textSplitOnNewlines.length; j++) {
         let subtext = textSplitOnNewlines[j];
 
         if (subtext == '') {
           let isBullet = item.attributes && item.attributes.list == 'bullet' ? true : false;
-          let bulletNotAppliedBackwards = this.usedBulletsIndex.indexOf(i) == -1;
 
-          if (isBullet && bulletNotAppliedBackwards) {
-            response.push({text: '', isBulletPoint: true });
-            // Push an empty text node in
-            response.push({text: '' });
+          if (isBullet) {
+            if (bulletTextNeedsToBeClosedOff) {
+              // Close off this bullet with a newline before drawing another bullet
+              this.convertedDataModel.push({text: '', isNewLine: true});
+              bulletTextNeedsToBeClosedOff = false;
+            }
+
+            let bulletIndex = this.usedBulletsIndex.find(x => x.index == i);
+            let canApplyBullet = bulletIndex && bulletIndex.qtyUsed < bulletIndex.qtyAllowed;
+
+            if (canApplyBullet) {
+              this.convertedDataModel.push({text: '', isBulletPoint: true });
+              // Push an empty text node in
+              this.convertedDataModel.push({text: '' });
+
+              // Push a newline in
+              this.convertedDataModel.push({text: '', isNewLine: true});
+
+              bulletIndex.qtyUsed++;
+            }
           }
-
-          // Push the newline
-          response.push({text: '', isNewLine: true });
-
-          appliedBulletForLine = false;
+          else {
+            this.convertedDataModel.push({text: '', isNewLine: true});
+          }
         }
         else {
           let model: CustomTextModel = {
@@ -216,19 +293,32 @@ export class AppComponent {
           // see if we are a bullet
           let isBullet = this.isNodeAfterMeFinalizingThisTextNodeAndIsBullet(i);
 
-          if (isBullet && !appliedBulletForLine) {
-            appliedBulletForLine = true;
+          if (isBullet && !bulletTextNeedsToBeClosedOff) {
+            // find the next appropriate bullet index to use
+            // get the first item where the index is greater than my index
+            let bulletIndex = this.usedBulletsIndex.find(x => x.index > i);
 
-            response.push({text: '', isBulletPoint: true });
+            if (bulletIndex && bulletIndex.qtyUsed < bulletIndex.qtyAllowed) {
+              bulletIndex.qtyUsed++;
+              this.convertedDataModel.push({text: '', isBulletPoint: true});
+              bulletTextNeedsToBeClosedOff = true;
+            }
           }
 
-          response.push(model);
+          this.convertedDataModel.push(model);
         }
       }
     }
+  }
 
-
-    return response;
+  private buildBulletIndex() {
+    const ops = this.dataModel.ops;
+    for(let i = 0; i < ops.length; i++) {
+      let item = ops[i];
+      if(item.attributes && item.attributes.list == 'bullet') {
+        this.usedBulletsIndex.push({ index: i, qtyAllowed: item.insert.split('\n').length - 1, qtyUsed: 0 });
+      }
+    }
   }
 
   private isNodeAfterMeFinalizingThisTextNodeAndIsBullet(index): boolean {
@@ -240,11 +330,6 @@ export class AppComponent {
 
       if (item.insert.endsWith('\n')) {
         response = item.attributes && item.attributes.list == 'bullet' ? true : false;
-
-        if(response) {
-          this.usedBulletsIndex.push(i);
-        }
-
         i = ops.length;
       }
     }
@@ -261,56 +346,22 @@ export class AppComponent {
       response.push(text);
     }
     else {
-      let textWithoutNewline = text.substr(0, indexOfNewline);
-      if (textWithoutNewline) {
-        response.push(textWithoutNewline);
-      }
+      let textSplitOnNewlines = text.split('\n');
 
-      text = text.substr(textWithoutNewline + 2, text.length - (textWithoutNewline + 2));
-
-      if (text.indexOf('\n') != -1) {
-        response.push(...this.getTextSplitOnNewlines(text));
+      if (textSplitOnNewlines.length > text.length) {
+        // This will be true if we are only made up of new lines
+        // push as many newlines into the array as we have
+        for(let i = 0; i < text.length; i++) {
+          response.push('');
+        }
       }
       else {
-        // this is for the ending newline that this line has.
-        response.push('');
+        textSplitOnNewlines.forEach((item) => {
+          response.push(item);
+        });
       }
     }
 
     return response;
-  }
-
-
-  private getCustomModelForTextNode(item, response: CustomTextModel[]) {
-    let textSplitOnNewlines = item.insert.split('\n');
-
-    textSplitOnNewlines.forEach((text) => {
-      if (text == '') {
-        response.push({text: '', isNewLine: true});
-      }
-      else {
-        let model: CustomTextModel = {
-          text: text
-        };
-
-        // Bold
-        if (item.attributes && item.attributes.bold) {
-          model.isBold = true;
-        }
-
-        // Underline
-        if (item.attributes && item.attributes.underline) {
-          model.isUnderline = true;
-        }
-
-        // Hyperlink
-        if (item.attributes && item.attributes.link) {
-          model.hyperlink = item.attributes.link;
-          model.isHyperLink = true;
-        }
-
-        response.push(model);
-      }
-    });
   }
 }
