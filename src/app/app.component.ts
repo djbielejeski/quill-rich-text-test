@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 
-interface CustomTextModel {
+export interface CustomTextModel {
   text: string;
   hyperlink?: string;
   isBold?: boolean;
@@ -28,65 +28,68 @@ export class AppComponent {
   // We can then work our way backwards from that \n to piece together all the other data
 
   dataModel = {
-    ops: [
-    {
-      insert: 'Test\n'
-    },
-    {
-      insert: 'Bullet 1'
-    },
-    {
-      attributes: { list: 'bullet' },
-      insert: '\n\n'
-    },
-    {
-      insert: 'asbv'
-    },
-    {
-      attributes: { list: 'bullet' },
-      insert: '\n'
-    },
-    {
-      insert: 'Bullet '
-    },
-    {
-      attributes:
-      {
-        bold: true
-      },
-      insert: '2'
-    },
-    {
-      attributes: { list: 'bullet' },
-      insert: '\n\n'
-    },
-    {
-      attributes:
+     ops: [
         {
-          link: 'www.google.com'
+          insert: "Test\nBullet 1"
         },
-      insert: 'Link'
-    },
-    {
-      insert: '\n'
-    },
-    {
-      attributes:
         {
-          bold: true
+          attributes: {
+            list: "bullet"
+          },
+          insert: "\n\n"
         },
-      insert: 'Bold'
-    },
-    {
-      insert: '\n'
-    },
-    {
-      attributes:
         {
-          underline: true
+          insert: "Bullet 2"
         },
-      insert: 'Underline'
-    }]
+        {
+          attributes: {
+            list: "bullet"
+          },
+          insert: "\n"
+        },
+        {
+          insert: "Bullet With "
+        },
+        {
+          attributes: {
+            bold: true
+          },
+          insert: "Bold"
+        },
+        {
+          attributes: {
+            list: "bullet"
+          },
+          insert: "\n\n"
+        },
+        {
+          attributes: {
+            underline: true
+          },
+          insert: "Underline"
+        },
+        {
+          insert: "\n"
+        },
+        {
+          attributes: {
+            link: "www.google.com"
+          },
+          insert: "Link"
+        },
+        {
+          insert: "\n"
+        },
+        {
+          attributes: {
+            bold: true
+          },
+          insert: "Bold"
+        },
+        {
+          insert: "\n"
+        }
+      ]
   };
 
   convertedDataModel: CustomTextModel[] = [];
@@ -116,7 +119,11 @@ export class AppComponent {
         i = i + 1;
 
         for (let currentBulletPointDataIndex = i; currentBulletPointDataIndex < nextIndexOfNewline; currentBulletPointDataIndex++) {
-          response.push(this.buildTextNode(this.convertedDataModel[currentBulletPointDataIndex]));
+          let subItem = this.convertedDataModel[currentBulletPointDataIndex];
+
+          if (subItem.text != '') {
+            response.push(this.buildTextNode(subItem));
+          }
         }
 
         response.push({
@@ -126,7 +133,7 @@ export class AppComponent {
           }
         });
 
-        i = nextIndexOfNewline + 1;
+        i = nextIndexOfNewline;
       }
       else if (item.isNewLine) {
         response.push({insert: '\n'});
@@ -225,7 +232,6 @@ export class AppComponent {
 
     this.usedBulletsIndex = [];
     this.buildBulletIndex();
-    console.info('---------- Staring parsing ----------');
 
     this.convertedDataModel = [];
     const ops = this.dataModel.ops;
@@ -306,6 +312,10 @@ export class AppComponent {
           }
 
           this.convertedDataModel.push(model);
+
+          if (j < textSplitOnNewlines.length - 1) {
+            this.convertedDataModel.push({ text: '', isNewLine: true });
+          }
         }
       }
     }
@@ -328,7 +338,7 @@ export class AppComponent {
     for(let i = index; i < ops.length; i++) {
       let item = ops[i];
 
-      if (item.insert.endsWith('\n')) {
+      if (item.insert.indexOf('\n') != -1) {
         response = item.attributes && item.attributes.list == 'bullet' ? true : false;
         i = ops.length;
       }
