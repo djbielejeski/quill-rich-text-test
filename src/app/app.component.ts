@@ -248,7 +248,7 @@ export class AppComponent {
       for(let j = 0; j < textSplitOnNewlines.length; j++) {
         let subtext = textSplitOnNewlines[j];
 
-        if (subtext == '') {
+        if (subtext == '\n') {
           let isBullet = item.attributes && item.attributes.list == 'bullet' ? true : false;
 
           if (isBullet) {
@@ -297,7 +297,11 @@ export class AppComponent {
           }
 
           // see if we are a bullet
-          let isBullet = this.isNodeAfterMeFinalizingThisTextNodeAndIsBullet(i);
+          let previousTextOnTheLine = '';
+          for(let previousTextIndex = 0; previousTextIndex < j; previousTextIndex++) {
+            previousTextOnTheLine += textSplitOnNewlines[previousTextIndex];
+          }
+          let isBullet = this.isNodeAfterMeFinalizingThisTextNodeAndIsBullet(i, previousTextOnTheLine);
 
           if (isBullet && !bulletTextNeedsToBeClosedOff) {
             // find the next appropriate bullet index to use
@@ -312,10 +316,6 @@ export class AppComponent {
           }
 
           this.convertedDataModel.push(model);
-
-          if (j < textSplitOnNewlines.length - 1) {
-            this.convertedDataModel.push({ text: '', isNewLine: true });
-          }
         }
       }
     }
@@ -331,14 +331,14 @@ export class AppComponent {
     }
   }
 
-  private isNodeAfterMeFinalizingThisTextNodeAndIsBullet(index): boolean {
+  private isNodeAfterMeFinalizingThisTextNodeAndIsBullet(index, previousTextOnTheLine): boolean {
     const ops = this.dataModel.ops;
     let response: boolean = false;
 
     for(let i = index; i < ops.length; i++) {
       let item = ops[i];
 
-      if (item.insert.indexOf('\n') != -1) {
+      if (item.insert.replace(previousTextOnTheLine, '').indexOf('\n') != -1) {
         response = item.attributes && item.attributes.list == 'bullet' ? true : false;
         i = ops.length;
       }
@@ -347,31 +347,7 @@ export class AppComponent {
     return response;
   }
 
-
-  private getTextSplitOnNewlines(text): string[] {
-    let response: string[] = [];
-
-    let indexOfNewline = text.indexOf('\n');
-    if (indexOfNewline == -1) {
-      response.push(text);
-    }
-    else {
-      let textSplitOnNewlines = text.split('\n');
-
-      if (textSplitOnNewlines.length > text.length) {
-        // This will be true if we are only made up of new lines
-        // push as many newlines into the array as we have
-        for(let i = 0; i < text.length; i++) {
-          response.push('');
-        }
-      }
-      else {
-        textSplitOnNewlines.forEach((item) => {
-          response.push(item);
-        });
-      }
-    }
-
-    return response;
-  }
+  private getTextSplitOnNewlines(text: string){
+    return text.split(new RegExp(`(${'\n'})`, 'g')).filter(stringHasValue => stringHasValue);
+  };
 }
